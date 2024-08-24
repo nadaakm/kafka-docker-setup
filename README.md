@@ -116,4 +116,4 @@ Feel free to open an issue or submit pull requests to contribute to this project
 This project is licensed under the MIT License.
 ```
 
-This `README.md` provides an overview, instructions, and key details about the services involved. You can adjust the service URLs and environment variables as per your project setup.  
+This `README.md` provides an overview, instructions, and key details about the services involved. You can adjust the service URLs and environment variables as per your project setup.  d
