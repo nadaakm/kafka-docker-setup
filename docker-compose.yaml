@@ -2,23 +2,20 @@ services:
   datawarehouse:
     image: postgres:16
     restart: always
-    container_name: datawarehouse
-    shm_size: '2gb'
+    container_name: datawarehouse-${TAG_INSTANCE}
     environment:
-      - POSTGRES_DB=datawarehouse
-      - POSTGRES_PASSWORD=datawarehouse
-      - POSTGRES_USER=datawarehouse
+      - POSTGRES_DB=${DATAWAREHOUSE_DB}
+      - POSTGRES_PASSWORD=${DATAWAREHOUSE_PSW}
+      - POSTGRES_USER=${DATAWAREHOUSE_USR}
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
       - ./volume_datawarehouse_postgres:/var/lib/postgresql/data/pgdata
     networks:
       - internal
-    ports:
-      - "${DATAWAREHOUSE_EXTERNAL_PORT}:5432"
 
   debezium:
     image: debezium/connect:1.9
-    container_name: debezium-pg-datawerehouse
+    container_name: debezium-${TAG_INSTANCE}
     environment:
       BOOTSTRAP_SERVERS: kafka:29092
       HEAP_OPTS: "-Xms4g -Xmx8g"
