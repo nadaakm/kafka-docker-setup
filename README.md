@@ -29,7 +29,7 @@ This repository provides a Docker Compose setup for a data warehouse environment
   - Uses JSON converters for both key and value data.
 - **Dependencies**: Depends on both PostgreSQL (`datawarehouse`) and Kafka.
 
-### 3. **Zookeeper** (Zookeeper, Controller, Broker, Server)
+### 3. **Zookeeper**
 - **Images**:
   - Zookeeper (`zookeeper:3.5.6`) to manage configuration.
 - **Zookeeper Client Port**: `2181`.
