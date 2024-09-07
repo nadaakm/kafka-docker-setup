@@ -1,4 +1,4 @@
-# Data Warehouse with Debezium, Kafka, Pinot, and Zookeeper
+# Data Warehouse with Debezium, Kafka, and Zookeeper
 
 This repository provides a Docker Compose setup for a data warehouse environment, including PostgreSQL, Debezium, , Kafka, and Zookeeper. These services are designed to work together to facilitate real-time data ingestion, processing, and storage, leveraging the power of streaming technologies like Debezium and Kafka.
 
@@ -9,15 +9,16 @@ This repository provides a Docker Compose setup for a data warehouse environment
 - **Zookeeper**: A centralized service for maintaining configuration and ensuring distributed systems' coordination.
 - **Kafka**: A distributed streaming platform that acts as an intermediary between Debezium and other services.
 - **Kafka Manager (Kafdrop)**: A user interface to manage and monitor Kafka clusters.
+- **nifi**: For automating and managing the flow of data between systems. It is particularly used for data       ingestion, transformation, and routing across various data sources and destinations
 
 ## Services in Docker Compose
 
 ### 1. **PostgreSQL (datawarehouse)**
 - **Image**: `postgres:16`
 - **Environment Variables**:
-  - `POSTGRES_DB=datawarehouse`
-  - `POSTGRES_PASSWORD=datawarehouse`
-  - `POSTGRES_USER=datawarehouse`
+  - `POSTGRES_DB= `
+  - `POSTGRES_PASSWORD= `
+  - `POSTGRES_USER= `
 - **Ports**: Exposes `5432` for PostgreSQL database access.
 - **Volumes**: Stores data in the local directory `./volume_datawarehouse_postgres`.
 
@@ -41,10 +42,12 @@ This repository provides a Docker Compose setup for a data warehouse environment
   - Connects to Zookeeper via `zookeeper`.
   - Exposes internal (`29092`) and external (`9092`) listeners.
   
-### 5. **Kafka Manager (Kafdrop)**
-- **Image**: `obsidiandynamics/kafdrop`
-- **Port**: Accessible on port `9000`.
-- **Depends on Kafka** for managing and monitoring Kafka topics.
+### 5. **nifi**
+- **Image**: `apache/nifi:latest`
+- **Port**: Accessible on port `8080`.
+- **Depends on Kafka** for data transformation and ingestion.
+
+
 
 ## Usage Instructions
 
