@@ -1,151 +1,32 @@
 services:
-  datawarehouse:
-    image: postgres:16
-    restart: always
-    container_name: datawarehouse-${TAG_INSTANCE}
+  zookeeper:
+    image: docker.io/bitnami/zookeeper:3.9  
+    container_name: zookeeper-${MIGRATION_INSTANCE}        
     environment:
-      - POSTGRES_DB=${DATAWAREHOUSE_DB}
-      - POSTGRES_PASSWORD=${DATAWAREHOUSE_PSW}
-      - POSTGRES_USER=${DATAWAREHOUSE_USR}
-      - PGDATA=/var/lib/postgresql/data/pgdata
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    user: root
     volumes:
-      - ./volume_datawarehouse_postgres:/var/lib/postgresql/data/pgdata
+      - ./data/zookeeper/data:/data
+      - ./data/zookeeper/datalog:/datalog
+      - ./zookeeper_data:/bitnami   
     networks:
       - internal
-
-  debezium:
-    image: debezium/connect:1.9
-    container_name: debezium-${TAG_INSTANCE}
-    environment:
-      BOOTSTRAP_SERVERS: kafka:29092
-      HEAP_OPTS: "-Xms4g -Xmx8g"
-      GROUP_ID: 1
-      CONFIG_STORAGE_TOPIC: my_connect_configs
-      OFFSET_STORAGE_TOPIC: my_connect_offsets
-      STATUS_STORAGE_TOPIC: my_connect_statuses
-      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
-      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
-    networks:
-      - internal
-      - web
-    depends_on:
-      - datawarehouse
-      - kafka
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.debezium-${TAG_INSTANCE}.entrypoints=web,websecure
-      - traefik.http.routers.debezium-${TAG_INSTANCE}.rule=Host(`${DEBEZIUM_ROUTE}`)
-      - traefik.http.routers.debezium-${TAG_INSTANCE}.tls=true
-      - traefik.http.routers.debezium-${TAG_INSTANCE}.tls.certresolver=le
-      - traefik.http.routers.debezium-${TAG_INSTANCE}.service=debezium-${TAG_INSTANCE}
-      - traefik.http.services.debezium-${TAG_INSTANCE}.loadbalancer.server.port=8083
-
-  pinot-zookeeper:
-    image: zookeeper:3.5.6
-    container_name: pinot-zookeeper-${TAG_INSTANCE}
-    #ports:
-      #- "2181:2181"
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    volumes:
-      - ./pinot-docker-demo/zookeeper/data:/data
-      - ./pinot-docker-demo/zookeeper/datalog:/datalog
-    networks:
-      - internal
-      - web
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.pinot-zookeeper-${TAG_INSTANCE}.entrypoints=web,websecure
-      - traefik.http.routers.pinot-zookeeper-${TAG_INSTANCE}.rule=Host(`${ZOOKEEPER_ROUTE}`)
-      - traefik.http.routers.pinot-zookeeper-${TAG_INSTANCE}.tls=true
-      - traefik.http.routers.pinot-zookeeper-${TAG_INSTANCE}.tls.certresolver=le
-      - traefik.http.routers.pinot-zookeeper-${TAG_INSTANCE}.service=pinot-zookeeper-${TAG_INSTANCE}
-      - traefik.http.services.pinot-zookeeper-${TAG_INSTANCE}.loadbalancer.server.port=2181
-
-  pinot-controller:
-    image: apachepinot/pinot:1.0.0
-    command: "StartController -zkAddress pinot-zookeeper:2181"
-    container_name: pinot-controller-${TAG_INSTANCE}
-    restart: unless-stopped
-    #ports:
-      #- "9000:9000"
-    environment:
-      ZOO_MY_ID: 1
-      JAVA_OPTS: "-Dplugins.dir=/opt/pinot/plugins -Xms1G -Xmx4G -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Xloggc:gc-pinot-controller.log"
-    depends_on:
-      - pinot-zookeeper
-    networks:
-      - internal
-      - web
-    volumes:
-      - ./pinot-docker-demo/pinot/controller:/tmp/data/controller
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.pinot-controller-${TAG_INSTANCE}.entrypoints=web,websecure
-      - traefik.http.routers.pinot-controller-${TAG_INSTANCE}.rule=Host(`${CONTROLLER_ROUTE}`)
-      - traefik.http.routers.pinot-controller-${TAG_INSTANCE}.tls=true
-      - traefik.http.routers.pinot-controller-${TAG_INSTANCE}.tls.certresolver=le
-      - traefik.http.routers.pinot-controller-${TAG_INSTANCE}.service=pinot-controller-${TAG_INSTANCE}
-      - traefik.http.services.pinot-controller-${TAG_INSTANCE}.loadbalancer.server.port=9000
-
-  pinot-broker:
-    image: apachepinot/pinot:1.0.0
-    command: "StartBroker -zkAddress pinot-zookeeper:2181"
-    restart: unless-stopped
-    container_name: "pinot-broker-${TAG_INSTANCE}"
-    #ports:
-      #- "8099:8099"
-    environment:
-      JAVA_OPTS: "-Dplugins.dir=/opt/pinot/plugins -Xms4G -Xmx4G -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Xloggc:gc-pinot-broker.log"
-    depends_on:
-      - pinot-controller
-    networks:
-      - internal
-      - web
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.pinot-broker-${TAG_INSTANCE}.entrypoints=web,websecure
-      - traefik.http.routers.pinot-broker-${TAG_INSTANCE}.rule=Host(`${BROKER_ROUTE}`)
-      - traefik.http.routers.pinot-broker-${TAG_INSTANCE}.tls=true
-      - traefik.http.routers.pinot-broker-${TAG_INSTANCE}.tls.certresolver=le
-      - traefik.http.routers.pinot-broker-${TAG_INSTANCE}.service=pinot-broker-${TAG_INSTANCE}
-      - traefik.http.services.pinot-broker-${TAG_INSTANCE}.loadbalancer.server.port=8099
-
-  pinot-server:
-    image: apachepinot/pinot:1.0.0
-    command: "StartServer -zkAddress pinot-zookeeper:2181"
-    restart: unless-stopped
-    container_name: "pinot-server-${TAG_INSTANCE}"
-    #ports:
-      #- "8098:8098"
-    environment:
-      JAVA_OPTS: "-Dplugins.dir=/opt/pinot/plugins -Xms4G -Xmx16G -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Xloggc:gc-pinot-server.log"
-    depends_on:
-      - pinot-broker
-      - pinot-controller
-    volumes:
-      - ./pinot-docker-demo/pinot/server:/tmp/data/server
-    networks:
-      - internal
-      - web
-
+  
+  
   kafka:
     image: wurstmeister/kafka:latest
-    container_name: kafka-metro-${TAG_INSTANCE}
+    container_name: kafka-${MIGRATION_INSTANCE}
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: pinot-zookeeper:2181/kafka
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181/kafka
       KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_LOG_CLEANER_DELETE_RETENTION_MS: 5000
-      KAFKA_DELETE_RETENTION_MS: 5000
+      KAFKA_LOG_CLEANER_DELETE_RETENTION_MS: 5000 
+      KAFKA_DELETE_RETENTION_MS: 5000 
       KAFKA_MESSAGE_MAX_BYTES: 104857600 # 100 MB
       KAFKA_MAX_REQUEST_SIZE: 104857600 # 100 MB
       KAFKA_REPLICA_FETCH_MAX_BYTES: 104857600  #100 MB
@@ -155,28 +36,21 @@ services:
       #KAFKA_LOG_CLEANER_BACKOFF_MS: "100"
       #KAFKA_LOG_RETENTION_MS: -1
       #KAFKA_LOG_RETENTION_BYTES: -1
+      #KAFKA_LOG_DIRS: /kafka/kafka-logs
       #KAFKA_LOG_CLEANER_ENABLE: "true"
       #KAFKA_LOG_CLEANUP_POLICY: compact
       #KAFKA_SEGMENT_MS: "100" # 60 seconds for testing
     networks:
       - internal
       - web
-    volumes:
-      - ./pinot-docker-demo/kafka/data:/var/lib/kafka/data
+    #volumes:
+      #- ./pinot-docker-demo/kafka/data:/var/lib/kafka/data
     depends_on:
-      - pinot-zookeeper
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.kafka-${TAG_INSTANCE}.entrypoints=web,websecure
-      - traefik.http.routers.kafka-${TAG_INSTANCE}.rule=Host(`${KAFKA_ROUTE}`)
-      - traefik.http.routers.kafka-${TAG_INSTANCE}.tls=true
-      - traefik.http.routers.kafka-${TAG_INSTANCE}.tls.certresolver=le
-      - traefik.http.routers.kafka-${TAG_INSTANCE}.service=kafka-${TAG_INSTANCE}
-      - traefik.http.services.kafka-${TAG_INSTANCE}.loadbalancer.server.port=9092
+      - zookeeper
 
   kafka-manager:
     image: obsidiandynamics/kafdrop
-    container_name: kafka-manager
+    container_name: kafka-manager-${MIGRATION_INSTANCE}
     restart: "always"
     environment:
       KAFKA_BROKERCONNECT: "kafka:29092"
@@ -187,12 +61,77 @@ services:
       - kafka
     labels:
       - traefik.enable=true
-      - traefik.http.routers.kafka-manager-${TAG_INSTANCE}.entrypoints=web,websecure
-      - traefik.http.routers.kafka-manager-${TAG_INSTANCE}.rule=Host(`${KAFKA_MANAGER_ROUTE}`)
-      - traefik.http.routers.kafka-manager-${TAG_INSTANCE}.tls=true
-      - traefik.http.routers.kafka-manager-${TAG_INSTANCE}.tls.certresolver=le
-      - traefik.http.routers.kafka-manager-${TAG_INSTANCE}.service=kafka-manager-${TAG_INSTANCE}
-      - traefik.http.services.kafka-manager-${TAG_INSTANCE}.loadbalancer.server.port=9000
+      - traefik.http.routers.kafka-manager-${MIGRATION_INSTANCE}.entrypoints=web,websecure
+      - traefik.http.routers.kafka-manager-${MIGRATION_INSTANCE}.rule=Host(`${KAFKA_MANAGER_ROUTE}`)
+      - traefik.http.routers.kafka-manager-${MIGRATION_INSTANCE}.tls=true
+      - traefik.http.routers.kafka-manager-${MIGRATION_INSTANCE}.tls.certresolver=le
+      - traefik.http.routers.kafka-manager-${MIGRATION_INSTANCE}.service=kafka-manager-${MIGRATION_INSTANCE}
+      - traefik.http.services.kafka-manager-${MIGRATION_INSTANCE}.loadbalancer.server.port=9000
+
+  debezium:
+    image: debezium/connect:1.9
+    container_name: debezium-${MIGRATION_INSTANCE}
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      HEAP_OPTS: "-Xms4g -Xmx8g"
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: my_connect_configs
+      OFFSET_STORAGE_TOPIC: my_connect_offsets
+      STATUS_STORAGE_TOPIC: my_connect_statuses
+      #- REST_HOST_NAME=0.0.0.0
+      #- ENABLE_DEBEZIUM_KC_REST_EXTENSION=true
+      #- ENABLE_DEBEZIUM_SCRIPTING=true
+      #- CONNECT_REST_EXTENSION_CLASSES=io.debezium.kcrestextension.DebeziumConnectRestExtension
+      #- VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      #- KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+    networks:
+      - internal
+      - web
+    depends_on:
+      #- datawarehouse
+      - kafka
+    #volumes:
+       #- ./debezium-connector-postgres:/kafka/connect/debezium-connector-postgres
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.debezium-${MIGRATION_INSTANCE}.entrypoints=web,websecure
+      - traefik.http.routers.debezium-${MIGRATION_INSTANCE}.rule=Host(`${DEBEZIUM_ROUTE}`)
+      - traefik.http.routers.debezium-${MIGRATION_INSTANCE}.tls=true
+      - traefik.http.routers.debezium-${MIGRATION_INSTANCE}.tls.certresolver=le
+      - traefik.http.routers.debezium-${MIGRATION_INSTANCE}.service=debezium-${MIGRATION_INSTANCE}
+      - traefik.http.services.debezium-${MIGRATION_INSTANCE}.loadbalancer.server.port=8083
+  
+  nifi-apache:
+    image: apache/nifi:latest
+    container_name: nifi-${MIGRATION_INSTANCE}
+    restart: "always"
+    environment:
+      NIFI_WEB_HTTP_PORT: "8080"
+      NIFI_JVM_HEAP_INIT: "1g"
+      NIFI_JVM_HEAP_MAX:  "2g"
+      #NIFI_WEB_HTTPS_PORT=9443 
+    volumes:
+      - ./nifi/postgresql-42.7.3.jar:/opt/nifi/nifi-current/lib/postgresql-42.7.3.jar
+      - ./nifi/database_repository:/opt/nifi/nifi-current/database_repository
+      - ./nifi/flowfile_repository:/opt/nifi/nifi-current/flowfile_repository
+      - ./nifi/content_repository:/opt/nifi/nifi-current/content_repository
+      - ./nifi/provenance_repository:/opt/nifi/nifi-current/provenance_repository 
+      #- ./nifi/conf:/opt/nifi/nifi-current/conf
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.apache-nifi-${MIGRATION_INSTANCE}.entrypoints=web,websecure
+      - traefik.http.routers.apache-nifi-${MIGRATION_INSTANCE}.rule=Host(`${NIFI_ROUTE}`)
+      - traefik.http.routers.apache-nifi-${MIGRATION_INSTANCE}.tls=true
+      - traefik.http.routers.apache-nifi-${MIGRATION_INSTANCE}.tls.certresolver=le
+      - traefik.http.routers.apache-nifi-${MIGRATION_INSTANCE}.service=apache-nifi-${MIGRATION_INSTANCE}
+      - traefik.http.services.apache-nifi-${MIGRATION_INSTANCE}.loadbalancer.server.port=8080
+    networks:
+      - internal
+      - web
 
 networks:
   internal:
