@@ -132,6 +132,23 @@ services:
     networks:
       - internal
       - web
+  
+  datawarehouse:
+    image: postgres:16
+    restart: always
+    container_name: datawarehouse-${MIGRATION_INSTANCE}
+    shm_size: '2gb'
+    environment:
+      - POSTGRES_DB=datawarehouse
+      - POSTGRES_PASSWORD=datawarehouse
+      - POSTGRES_USER=datawarehouse
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - ./volume_datawarehouse_postgres:/var/lib/postgresql/data/pgdata
+    networks:
+      - internal
+    ports:
+      - "${DATAWAREHOUSE_EXTERNAL_PORT}:5432"
 
 networks:
   internal:
