@@ -1,116 +1,211 @@
-# Data Warehouse with Debezium, Kafka, and Zookeeper
+# Docker Compose Setup for Kafka, Zookeeper, Debezium, NiFi, and Kafka Manager
 
-This repository provides a Docker Compose setup for a data warehouse environment, including PostgreSQL, Debezium, , Kafka, and Zookeeper. These services are designed to work together to facilitate real-time data ingestion, processing, and storage, leveraging the power of streaming technologies like Debezium and Kafka.
+This Docker Compose setup includes the following services:
 
-## Overview of Services
+- **Zookeeper**: A service used by Kafka for managing its distributed coordination.
+- **Kafka**: The distributed event streaming platform.
+- **Kafka Manager (Kafdrop)**: A web UI for monitoring and managing Kafka clusters.
+- **Debezium**: A change data capture tool that streams data changes from PostgreSQL to Kafka.
+- **Apache NiFi**: A data integration and processing platform.
+- **Traefik**: A reverse proxy used to route traffic for the services.
 
-- **PostgreSQL (datawarehouse)**: A PostgreSQL database used to store data in the data warehouse.
-- **Debezium**: Debezium captures row-level changes in PostgreSQL and streams them via Kafka.
-- **Zookeeper**: A centralized service for maintaining configuration and ensuring distributed systems' coordination.
-- **Kafka**: A distributed streaming platform that acts as an intermediary between Debezium and other services.
-- **Kafka Manager (Kafdrop)**: A user interface to manage and monitor Kafka clusters.
-- **nifi**: For automating and managing the flow of data between systems. It is particularly used for data       ingestion, transformation, and routing across various data sources and destinations
+## Table of Contents
 
-## Services in Docker Compose
+- [Requirements](#requirements)
+- [Usage](#usage)
+- [Services Overview](#services-overview)
+- [Volumes](#volumes)
+- [Networks](#networks)
+- [Troubleshooting](#troubleshooting)
 
-### 1. **PostgreSQL (datawarehouse)**
-- **Image**: `postgres:16`
-- **Environment Variables**:
-  - `POSTGRES_DB= `
-  - `POSTGRES_PASSWORD= `
-  - `POSTGRES_USER= `
-- **Ports**: Exposes `5432` for PostgreSQL database access.
-- **Volumes**: Stores data in the local directory `./volume_datawarehouse_postgres`.
+## Requirements
 
-### 2. **Debezium**
-- **Image**: `debezium/connect:1.9`
-- **Environment Variables**:
-  - Connects to Kafka on port `29092`.
-  - Uses JSON converters for both key and value data.
-- **Dependencies**: Depends on both PostgreSQL (`datawarehouse`) and Kafka.
+- Docker and Docker Compose installed.
+- Traefik for reverse proxy configuration.
+- PostgreSQL JDBC driver (`postgresql-42.7.3.jar`) for NiFi.
 
-### 3. **Zookeeper**
-- **Images**:
-  - Zookeeper (`zookeeper:3.5.6`) to manage configuration.
-- **Zookeeper Client Port**: `2181`.
+## Usage
 
+1. Clone the repository or copy the `docker-compose.yml` file.
+2. Make sure to set the required environment variables such as:
+   - `${MIGRATION_INSTANCE}`: A unique identifier for your container names and routes.
+   - `${KAFKA_MANAGER_ROUTE}`, `${DEBEZIUM_ROUTE}`, and `${NIFI_ROUTE}`: DNS routes for accessing the respective services via Traefik.
+3. Run the following command to start the services:
+
+    ```bash
+    docker-compose up -d
+    ```
+
+4. Access the services through the specified routes:
+   - **Kafka Manager (Kafdrop)**: `<KAFKA_MANAGER_ROUTE>`
+   - **Debezium**: `<DEBEZIUM_ROUTE>`
+   - **NiFi**: `<NIFI_ROUTE>`
+
+## Services Overview
+
+### 1. **Zookeeper**
+
+Zookeeper coordinates and manages Kafka's distributed cluster. The service is configured to run on port `2182`.
+
+- **Data Directory**: `./data/zookeeper/data`
+- **Datalog Directory**: `./data/zookeeper/datalog`
+
+### 2. **Kafka**
+
+Kafka is set up to run with two listeners: an internal one for inter-broker communication (`INTERNAL://:29093`) and an external one for clients (`EXTERNAL://:9093`).
+
+- **Log Directories**: `./data/kafka/data`
+- **Key Environment Variables**:
+  - `KAFKA_MESSAGE_MAX_BYTES`: Maximum message size set to 100MB. (options)
+  - `KAFKA_MAX_REQUEST_SIZE`: Maximum request size set to 100MB.  (options)
+
+### 3. **Kafka Manager (Kafdrop)**
+
+Kafka Manager is used for managing Kafka topics, consumers, and partitions. It is accessible through Traefik and configured to connect to Kafka on port `29093`.
+
+- **UI Port**: `9000`
   
-### 4. **Kafka**
-- **Image**: `wurstmeister/kafka:latest`
-- **Environment Variables**:
-  - Broker ID `1`.
-  - Connects to Zookeeper via `zookeeper`.
-  - Exposes internal (`29092`) and external (`9092`) listeners.
-  
-### 5. **nifi**
-- **Image**: `apache/nifi:latest`
-- **Port**: Accessible on port `8080`.
-- **Depends on Kafka** for data transformation and ingestion.
+### 4. **Debezium**
 
+Debezium is used for change data capture from a PostgreSQL database, streaming the data into Kafka topics.
 
+- **Kafka Bootstrap Servers**: `kafka:29093`
+- **Heap Memory**: `-Xms4g -Xmx8g` (can be changed based on server resources)
+- **Converters**: JSON converters are used for key and value conversion.
 
-## Usage Instructions
+### 5. **Apache NiFi**
 
-1. **Clone the Repository**:
-   ```bash
-   git clone <repository-url>
-   cd <repository-folder>
-   ```
+NiFi is used for data ingestion, transformation, and routing. It connects to PostgreSQL using the JDBC driver located in the mounted volume.
 
-2. **Environment Setup**:
-   Ensure the following environment variables are set in your `.env` file:
-   ```env
-   MIGRATION_INSTANCE=my-instance
-   DEBEZIUM_ROUTE=my-debezium-route.com
-   NIFI_ROUTE=my-nifi-route.com
-   KAFKA_MANAGER_ROUTE=my-kafka-manager-route.com
-   ```
+- **HTTP Port**: `8080`
+- **Heap Memory**: `1g` initial, `2g` max
+- **Volumes**: Mounted repositories for database, flowfile, content, and provenance data.
 
-3. **Start the Services**:
-   Run the following command to start all the services using Docker Compose:
-   ```bash
-   docker-compose up -d
-   ```
-
-4. **Access the Services**:
-   - PostgreSQL: `localhost:5432`
-   - Nifi: Visit `${NIFI_ROUTE}`
-   - Kafka Manager (Kafdrop): Visit `${KAFKA_MANAGER_ROUTE}`
-
-5. **Shut Down the Services**:
-   To stop the services, run:
-   ```bash
-   docker-compose down
-   ```
 
 ## Volumes
 
-The following volumes are used to persist data across container restarts:
-- **PostgreSQL**: `./volume_datawarehouse_postgres`
-- **Zookeeper**: `./data/zookeeper/data`
-- **Kafka**: `./pinot-docker-demo/kafka/data`
-- **nifi**: `./nifi`
+The services use the following volumes for data persistence:
+
+- `./data/zookeeper`: Zookeeper data and log storage.
+- `./data/kafka`: Kafka log storage.
+- NiFi directories:
+  - `./nifi/database_repository`
+  - `./nifi/flowfile_repository`
+  - `./nifi/content_repository`
+  - `./nifi/provenance_repository`
+  - Ensure that these directories have `777` permissions to allow full access for all users.
+- PostgreSQL JDBC driver: `./postgresql-42.7.3.jar`
+  - Ensure that this file has `777` permissions for full access.
+  - Ensure to change the propretie : nifi.content.repository.archive.enabled=true ==> false
+   `curl` command:
+    ```bash
+    docker exec -it nifi-${MIGRATION_INSTANCE} bash
+    cd conf
+    nano nifi.properties
+    ```
 
 ## Networks
 
-- **Internal**: Used for internal communication between services (PostgreSQL, Kafka, Debezium, Pinot).
-- **Web**: Externally exposed via Traefik.
+- **Internal Network**: Used for communication between Kafka, Zookeeper, and Debezium.
+- **Web Network**: An external network for Traefik to route external traffic.
 
-## Additional Information
+## Troubleshooting
 
-- This setup uses **Traefik** to manage routing for external services, providing HTTPS and load balancing.
-- Ensure you have `docker-compose` installed to run this project.
-- For testing Kafka configurations , use the appropriate tools like `kafka-console-consumer`.
+1. **Kafka Message Size Issues**: If you encounter errors related to message size, ensure that the `KAFKA_MESSAGE_MAX_BYTES`, `KAFKA_MAX_REQUEST_SIZE`, and `KAFKA_TOPIC_MAX_MESSAGE_BYTES` are configured correctly.
+  
 
----
+2. **Debezium Connector Management**: Ensure Debezium can connect to Kafka by checking the logs and verifying the correct Kafka broker URL and port are configured.
 
-## Contributing
+- **List Connectors**:
+  - `GET` [https://DEBEZIUM_ROUTE/connectors/](https://DEBEZIUM_ROUTE/connectors/)
+  - `curl` command:
+    ```bash
+    curl -i -X GET -H "Accept:application/json" https://DEBEZIUM_ROUTE/connectors/
+    ```
 
-Feel free to open an issue or submit pull requests to contribute to this project.
+- **Create a Connector**:
+  - `POST` [https://DEBEZIUM_ROUTE/connectors/](https://DEBEZIUM_ROUTE/connectors/)
+  - `curl` command:
+    ```bash
+    curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" https://DEBEZIUM_ROUTE/connectors/ --data @debezium-config.json
+    ```
+  - Replace `@debezium-config1.json` with the path to your Debezium configuration JSON file.
 
-## License
+- **Check Connector Status**:
+  - `GET` [https://DEBEZIUM_ROUTE/connectors/<<connector_name>>/status](https://DEBEZIUM_ROUTE/connectors/<<connector_name>>/status)
+  - `curl` command:
+    ```bash
+    curl -i -X GET -H "Accept:application/json" https://DEBEZIUM_ROUTE/connectors/<<connector_name>>/status
+    ```
+  - Replace `<<connector_name>>` with the actual name of the connector.
 
-This project is licensed under the MIT License.
+- **Delete a Connector**:
+  - `DELETE` [https://DEBEZIUM_ROUTE/connectors/<<connector_name>>](https://DEBEZIUM_ROUTE/connectors/<<connector_name>>)
+  - `curl` command:
+    ```bash
+    curl -i -X DELETE -H "Accept:application/json" https://DEBEZIUM_ROUTE/connectors/<<connector_name>>
+    ```
+  - Replace `<<connector_name>>` with the name of the connector you want to delete.
+
+  **Debezium Connector Configuration**
+
+  This configuration file is used for setting up the Debezium connector. Below are the key sections explained:
+
+  - **transforms**: Specifies the transformations applied to the data.
+  - **transforms.unwrap.type**: Extracts the new record state from the Debezium message.
+  - **transforms.castLatitude.type**: Casts the latitude field to a FLOAT64 data type.
+  - **transforms.timestampDate.type**: Converts the date field to a Timestamp format.
+
+  ... and so on for each transformation.
+
+  For more details, refer to the [Debezium documentation](https://debezium.io/documentation/).
+
+
+
+3. **NiFi PostgreSQL Integration**: Ensure that the PostgreSQL JDBC driver is correctly mounted in NiFi, and that the database configurations in NiFi processors are accurate.
+
+
+```markdown
+## PostgreSQL Configuration 
+
+To configure PostgreSQL for logical replication , add the following settings to the `postgresql.conf` file:
+
+```ini
+# Enable logical replication
+wal_level = logical
+
+# Set the maximum number of concurrent replication connections
+max_wal_senders = 50
+
+# Set the maximum number of replication slots
+max_replication_slots = 100
 ```
 
-This `README.md` provides an overview, instructions, and key details about the services involved. You can adjust the service URLs and environment variables as per your project setup.
+### Steps to Apply Configuration on sfa13 and sfa8 databases to use this stack
+
+1. **Locate the `postgresql.conf` file**:
+   - The file is typically located in the PostgreSQL data directory. path/to/database (volume in docker-compose file)
+
+2. **Edit the `postgresql.conf` file**:
+   - Open the file in a text editor with sufficient permissions (using `sudo`).
+
+3. **Add or Update the Configuration**:
+   - Add the above settings to the file, or update existing values if they are already present.
+
+4. **Restart PostgreSQL**:
+   - Apply the changes by restarting the PostgreSQL service. You can do this with a command like:
+     ```sh
+     docker restart database
+     ```
+
+5. **Verify the Configuration**:
+   - Ensure the settings are applied correctly by checking the PostgreSQL logs or using the following SQL command:
+     ```sh
+     docker exec -it pqsl -U user -d database database
+     ```
+
+     ```sql
+     SHOW wal_level;
+     SHOW max_wal_senders;
+     SHOW max_replication_slots;
+     ```
